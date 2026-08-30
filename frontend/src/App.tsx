@@ -12,12 +12,15 @@ import {
   LayoutDashboard,
   Menu,
   MessageSquareText,
+  LoaderCircle,
   Plus,
   Search,
   Settings,
   TrendingUp,
   UserRound,
   UsersRound,
+  Wifi,
+  WifiOff,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +31,10 @@ import {
   summaryMetrics,
   todaysLessons,
 } from "./mocks/dashboard";
+import {
+  useBackendHealth,
+  type BackendStatus,
+} from "./hooks/useBackendHealth";
 
 type NavItem = {
   label: string;
@@ -57,7 +64,34 @@ const lessonAccent = {
   amber: "bg-[#dda431]",
 };
 
-function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+const backendStatusDisplay = {
+  checking: {
+    label: "Connecting to system",
+    icon: LoaderCircle,
+    iconClassName: "animate-spin text-[#f4c85b]",
+  },
+  online: {
+    label: "System online",
+    icon: Wifi,
+    iconClassName: "text-[#75d6b7]",
+  },
+  offline: {
+    label: "System unavailable",
+    icon: WifiOff,
+    iconClassName: "text-[#f09a80]",
+  },
+};
+
+function Sidebar({
+  backendStatus,
+  onNavigate,
+}: {
+  backendStatus: BackendStatus;
+  onNavigate?: () => void;
+}) {
+  const statusDisplay = backendStatusDisplay[backendStatus];
+  const StatusIcon = statusDisplay.icon;
+
   return (
     <aside className="flex h-full flex-col bg-[#142b2b] px-4 py-5 text-white">
       <div className="mb-8 flex items-center gap-3 px-2">
@@ -98,6 +132,18 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="mt-auto">
+        <div
+          className="mb-3 flex items-center gap-2 px-3 text-xs font-medium text-[#a9c0bd]"
+          role="status"
+          aria-live="polite"
+        >
+          <StatusIcon
+            size={14}
+            strokeWidth={2}
+            className={statusDisplay.iconClassName}
+          />
+          {statusDisplay.label}
+        </div>
         <a
           href="#settings"
           className="mb-4 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[#bdd0cd] hover:bg-white/7 hover:text-white"
@@ -124,11 +170,12 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
 function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const backendStatus = useBackendHealth();
 
   return (
     <div className="min-h-screen bg-[#f4f3ee] text-[#172825]">
       <div className="fixed inset-y-0 left-0 hidden w-64 lg:block">
-        <Sidebar />
+        <Sidebar backendStatus={backendStatus} />
       </div>
 
       {mobileMenuOpen && (
@@ -148,7 +195,10 @@ function App() {
             >
               <X size={20} />
             </button>
-            <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
+            <Sidebar
+              backendStatus={backendStatus}
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
           </div>
         </div>
       )}
