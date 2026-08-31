@@ -1,13 +1,28 @@
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = BASE_DIR.parent
 
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "development-only-secret-key-change-before-deployment",
-)
+load_dotenv(PROJECT_ROOT / ".env")
+
+
+def required_environment_variable(name: str) -> str:
+    value = os.getenv(name)
+
+    if not value:
+        raise ImproperlyConfigured(
+            f"The {name} environment variable must be configured."
+        )
+
+    return value
+
+
+SECRET_KEY = required_environment_variable("DJANGO_SECRET_KEY")
 DEBUG = os.getenv("DJANGO_DEBUG", "false").lower() == "true"
 ALLOWED_HOSTS = [
     host.strip()
@@ -55,12 +70,16 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-# SQLite keeps this first backend milestone self-contained. PostgreSQL will
-# replace it in the dedicated database milestone.
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("POSTGRES_DB", "tutordesk"),
+        "USER": os.getenv("POSTGRES_USER", "tutordesk"),
+        "PASSWORD": required_environment_variable("POSTGRES_PASSWORD"),
+        "HOST": os.getenv("POSTGRES_HOST", "localhost"),
+        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "CONN_MAX_AGE": 60,
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 
