@@ -10,12 +10,14 @@ afterEach(() => {
 
 
 test("renders the dashboard and reports a healthy backend", async () => {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ status: "ok" }),
+  });
+
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ status: "ok" }),
-    }),
+    fetchMock,
   );
 
   render(<App />);
@@ -30,6 +32,11 @@ test("renders the dashboard and reports a healthy backend", async () => {
   await waitFor(() => {
     expect(screen.getByText("System online")).toBeInTheDocument();
   });
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/v1/health/",
+    expect.objectContaining({ credentials: "include" }),
+  );
 });
 
 
