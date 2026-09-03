@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { LoginPage } from "./auth/LoginPage";
+import { SignOutButton } from "./auth/SignOutButton";
+import { useAuth } from "./auth/useAuth";
 import {
   Bell,
   BookOpen,
@@ -91,9 +94,12 @@ function Sidebar({
 }) {
   const statusDisplay = backendStatusDisplay[backendStatus];
   const StatusIcon = statusDisplay.icon;
+  const { user } = useAuth();
+  const displayName = user?.first_name.trim() || user?.email || "Tutor";
+  const initials = `${user?.first_name.charAt(0) || user?.email.charAt(0) || "T"}${user?.last_name.charAt(0) || ""}`.toUpperCase();
 
   return (
-    <aside className="flex h-full flex-col bg-[#142b2b] px-4 py-5 text-white">
+    <aside className="flex h-full flex-col overflow-y-auto bg-[#142b2b] px-4 py-5 text-white">
       <div className="mb-8 flex items-center gap-3 px-2">
         <div className="grid size-10 place-items-center rounded-xl bg-[#f4c85b] text-[#142b2b] shadow-[0_8px_22px_rgba(244,200,91,0.18)]">
           <GraduationCap size={22} strokeWidth={2.2} />
@@ -154,23 +160,25 @@ function Sidebar({
         <div className="rounded-2xl border border-white/8 bg-white/6 p-3">
           <div className="flex items-center gap-3">
             <div className="grid size-9 place-items-center rounded-full bg-[#d9efe9] text-sm font-bold text-[#205b4d]">
-              AR
+              {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">Aravind</p>
+              <p className="truncate text-sm font-semibold">{displayName}</p>
               <p className="text-xs text-[#9fb7b3]">Tutor account</p>
             </div>
             <ChevronRight size={16} className="text-[#8da7a3]" />
           </div>
         </div>
+        <div className="mt-3 text-[#bdd0cd]"><SignOutButton /></div>
       </div>
     </aside>
   );
 }
 
-function App() {
+function Dashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const backendStatus = useBackendHealth();
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-[#f4f3ee] text-[#172825]">
@@ -248,7 +256,7 @@ function App() {
                 Saturday, 29 August
               </p>
               <h1 className="text-3xl font-bold tracking-[-0.04em] text-[#172825] md:text-4xl">
-                Good morning, Aravind
+                Welcome back, {user?.first_name.trim() || user?.email}
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-[#6e7a76] md:text-base">
                 You have three lessons today. Everything else is looking nicely
@@ -409,4 +417,34 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  const { status, user } = useAuth();
+
+  if (status === "loading") {
+    return (
+      <main className="grid min-h-screen place-items-center bg-[#f4f3ee] text-[#1f765f]">
+        <p role="status" className="flex items-center gap-3 font-semibold">
+          <LoaderCircle className="animate-spin" aria-hidden="true" /> Checking your session…
+        </p>
+      </main>
+    );
+  }
+
+  if (status !== "authenticated" || !user) return <LoginPage />;
+
+  if (user.role !== "tutor") {
+    return (
+      <main className="grid min-h-screen place-items-center bg-[#f4f3ee] p-6 text-[#172825]">
+        <section className="w-full max-w-md rounded-3xl border border-[#dfe2d9] bg-white p-8">
+          <GraduationCap size={32} className="mb-6 text-[#1f765f]" aria-hidden="true" />
+          <p className="mb-2 text-sm font-semibold capitalize text-[#1f765f]">{user.role} account</p>
+          <h1 className="text-2xl font-bold">Your portal is not available yet</h1>
+          <p className="my-5 text-sm leading-6 text-[#66736f]">You are signed in as {user.email}. Your student or guardian portal is still being built. Please check with your tutor for updates.</p>
+          <SignOutButton />
+        </section>
+      </main>
+    );
+  }
+
+  return <Dashboard />;
+}
