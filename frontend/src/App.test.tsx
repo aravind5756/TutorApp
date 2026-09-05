@@ -5,9 +5,11 @@ import { afterEach, beforeEach, test, vi } from "vitest";
 import App from "./App";
 import { getCurrentUser, login, logout, type AuthenticatedUser } from "./api/auth";
 import { ApiError } from "./api/client";
+import * as studentsApi from "./api/students";
 import { AuthProvider } from "./auth/AuthContext";
 
 vi.mock("./api/auth", () => ({ getCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn() }));
+vi.mock("./api/students", () => ({ getStudents: vi.fn() }));
 
 const tutor: AuthenticatedUser = {
   id: 1, email: "tutor@example.com", first_name: "Alex", last_name: "Reed", role: "tutor",
@@ -17,6 +19,12 @@ beforeEach(() => {
   vi.mocked(getCurrentUser).mockRejectedValue(new ApiError("Not authenticated.", 403));
   vi.mocked(login).mockResolvedValue(tutor);
   vi.mocked(logout).mockResolvedValue(undefined);
+  vi.mocked(studentsApi.getStudents).mockResolvedValue({
+    count: 1, next: null, previous: null, results: [{
+      id: 1, first_name: "Maya", last_name: "Thompson", year_group: "Year 11",
+      subjects: "Mathematics", is_active: true,
+    }],
+  });
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
     ok: true, status: 200, json: async () => ({ status: "ok" }),
   }));
@@ -97,6 +105,19 @@ test("restores a tutor session and checks backend health", async () => {
   expect(await screen.findByRole("heading", { name: "Welcome back, Alex" })).toBeInTheDocument();
   expect(await screen.findByText("System online")).toBeInTheDocument();
   expect(fetch).toHaveBeenCalledWith("/api/v1/health/", expect.objectContaining({ credentials: "include" }));
+});
+
+test("a tutor can open the Students page from the navigation", async () => {
+  vi.mocked(getCurrentUser).mockResolvedValue(tutor);
+  renderApp();
+  await screen.findByRole("heading", { name: "Welcome back, Alex" });
+
+  await userEvent.click(screen.getByRole("link", { name: "Students" }));
+
+  expect(await screen.findByRole("heading", { name: "Students" })).toBeInTheDocument();
+  expect(await screen.findByText("Maya Thompson")).toBeInTheDocument();
+  expect(screen.queryByText("Lessons this week")).not.toBeInTheDocument();
+  expect(studentsApi.getStudents).toHaveBeenCalledWith(1);
 });
 
 test.each(["student", "guardian"] as const)("%s accounts cannot see the tutor dashboard", async (role) => {

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LoginPage } from "./auth/LoginPage";
 import { SignOutButton } from "./auth/SignOutButton";
 import { useAuth } from "./auth/useAuth";
+import { StudentsPage } from "./students/StudentsPage";
 import {
   Bell,
   BookOpen,
@@ -43,6 +44,8 @@ type NavItem = {
   label: string;
   icon: LucideIcon;
 };
+
+type Page = "Dashboard" | "Students";
 
 const navigation: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard },
@@ -87,9 +90,13 @@ const backendStatusDisplay = {
 
 function Sidebar({
   backendStatus,
+  activePage,
+  onSelectPage,
   onNavigate,
 }: {
   backendStatus: BackendStatus;
+  activePage: Page;
+  onSelectPage: (page: Page) => void;
   onNavigate?: () => void;
 }) {
   const statusDisplay = backendStatusDisplay[backendStatus];
@@ -112,12 +119,19 @@ function Sidebar({
 
       <nav aria-label="Primary navigation" className="space-y-1">
         {navigation.map(({ label, icon: Icon }) => {
-          const isActive = label === "Dashboard";
+          const isActive = label === activePage;
+          const isAvailable = label === "Dashboard" || label === "Students";
           return (
             <a
               key={label}
               href={`#${label.toLowerCase()}`}
-              onClick={onNavigate}
+              onClick={(event) => {
+                if (isAvailable) {
+                  event.preventDefault();
+                  onSelectPage(label as Page);
+                }
+                onNavigate?.();
+              }}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-white/12 text-white"
@@ -177,13 +191,14 @@ function Sidebar({
 
 function Dashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activePage, setActivePage] = useState<Page>("Dashboard");
   const backendStatus = useBackendHealth();
   const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-[#f4f3ee] text-[#172825]">
       <div className="fixed inset-y-0 left-0 hidden w-64 lg:block">
-        <Sidebar backendStatus={backendStatus} />
+        <Sidebar backendStatus={backendStatus} activePage={activePage} onSelectPage={setActivePage} />
       </div>
 
       {mobileMenuOpen && (
@@ -205,6 +220,8 @@ function Dashboard() {
             </button>
             <Sidebar
               backendStatus={backendStatus}
+              activePage={activePage}
+              onSelectPage={setActivePage}
               onNavigate={() => setMobileMenuOpen(false)}
             />
           </div>
@@ -249,7 +266,7 @@ function Dashboard() {
           </div>
         </header>
 
-        <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-8 lg:px-10 lg:py-9">
+        {activePage === "Students" ? <StudentsPage /> : <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-8 lg:px-10 lg:py-9">
           <section className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <p className="mb-1 text-sm font-semibold text-[#1f765f]">
@@ -411,7 +428,7 @@ function Dashboard() {
               <div><p className="text-xs font-medium text-[#7a8581]">Homework returned</p><p className="text-sm font-bold">14 of 16 this week</p></div>
             </article>
           </section>
-        </div>
+        </div>}
       </main>
     </div>
   );
