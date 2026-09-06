@@ -80,6 +80,48 @@ def test_empty_student_list(tutor_client):
     assert response.json() == {"count": 0, "next": None, "previous": None, "results": []}
 
 
+def test_tutor_can_create_a_student(tutor_client):
+    response = tutor_client.post(reverse("api:student-list"), {
+        "first_name": "  Maya  ", "last_name": "  Thompson  ",
+        "year_group": "Year 11", "subjects": "Mathematics\nPhysics",
+    }, format="json")
+
+    assert response.status_code == 201
+    student = StudentProfile.objects.get()
+    assert student.first_name == "Maya"
+    assert student.last_name == "Thompson"
+    assert student.is_active
+    assert response.json() == {
+        "id": student.pk, "first_name": "Maya", "last_name": "Thompson",
+        "year_group": "Year 11", "subjects": "Mathematics\nPhysics", "is_active": True,
+    }
+
+
+@pytest.mark.parametrize("missing_field", ["first_name", "last_name"])
+def test_student_names_are_required_when_creating(tutor_client, missing_field):
+    data = {"first_name": "Maya", "last_name": "Thompson"}
+    del data[missing_field]
+
+    response = tutor_client.post(reverse("api:student-list"), data, format="json")
+
+    assert response.status_code == 400
+    assert missing_field in response.json()
+    assert not StudentProfile.objects.exists()
+
+
+@pytest.mark.parametrize("role", [User.Role.STUDENT, User.Role.GUARDIAN])
+def test_non_tutor_cannot_create_students(client, role):
+    user = User.objects.create_user(email=f"{role}-create@example.com", role=role)
+    client.force_login(user)
+
+    response = client.post(reverse("api:student-list"), {
+        "first_name": "Maya", "last_name": "Thompson",
+    }, format="json")
+
+    assert response.status_code == 403
+    assert not StudentProfile.objects.exists()
+
+
 def test_list_includes_inactive_students_in_name_order(tutor_client, student):
     StudentProfile.objects.create(first_name="Zoe", last_name="Reed")
     StudentProfile.objects.create(first_name="Alex", last_name="Reed", is_active=False)
@@ -109,7 +151,7 @@ def test_students_are_paginated_without_duplicates(tutor_client):
     assert ids == list(StudentProfile.objects.values_list("pk", flat=True))
 
 
-@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+@pytest.mark.parametrize("method", ["put", "patch", "delete"])
 def test_list_endpoint_does_not_allow_writes(tutor_client, student, method):
     response = getattr(tutor_client, method)(
         reverse("api:student-list"), {"first_name": "Changed"}, format="json",

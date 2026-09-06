@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import { getCsrfToken } from "./auth";
 
 export type StudentSummary = {
   id: number;
@@ -16,7 +17,25 @@ export type StudentListResponse = {
   results: StudentSummary[];
 };
 
+export type NewStudent = Pick<
+  StudentSummary,
+  "first_name" | "last_name" | "year_group" | "subjects"
+>;
+
 export function getStudents(page = 1): Promise<StudentListResponse> {
   const query = page > 1 ? `?page=${page}` : "";
   return apiRequest<StudentListResponse>(`/students/${query}`);
+}
+
+export async function createStudent(student: NewStudent): Promise<StudentSummary> {
+  const token = await getCsrfToken();
+
+  return apiRequest<StudentSummary>("/students/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": token,
+    },
+    body: JSON.stringify(student),
+  });
 }

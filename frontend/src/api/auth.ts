@@ -23,7 +23,7 @@ function readCookie(name: string): string | null {
   return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
 }
 
-async function csrfToken(): Promise<string> {
+export async function getCsrfToken(): Promise<string> {
   await apiRequest<{ detail: string }>("/auth/csrf/");
 
   const token = readCookie("csrftoken");
@@ -42,7 +42,7 @@ export function getCurrentUser(): Promise<AuthenticatedUser> {
 export async function login(
   credentials: LoginCredentials,
 ): Promise<AuthenticatedUser> {
-  const token = await csrfToken();
+  const token = await getCsrfToken();
 
   return apiRequest<AuthenticatedUser>("/auth/login/", {
     method: "POST",
@@ -55,7 +55,7 @@ export async function login(
 }
 
 export async function logout(): Promise<void> {
-  const token = readCookie("csrftoken") ?? (await csrfToken());
+  const token = readCookie("csrftoken") ?? (await getCsrfToken());
 
   await apiRequest<void>("/auth/logout/", {
     method: "POST",

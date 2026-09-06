@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, LoaderCircle, UsersRound } from "lucide-react";
+import { AlertCircle, LoaderCircle, Plus, UsersRound } from "lucide-react";
 
 import { getStudents, type StudentSummary } from "../api/students";
+import { AddStudentForm } from "./AddStudentForm";
 
 function StudentCard({ student }: { student: StudentSummary }) {
   const subjects = student.subjects
@@ -49,6 +50,7 @@ export function StudentsPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [showAddForm, setShowAddForm] = useState(false);
 
   async function loadStudents(pageToLoad: number) {
     setStatus("loading");
@@ -69,13 +71,27 @@ export function StudentsPage() {
 
   return (
     <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-8 lg:px-10 lg:py-9">
-      <header className="mb-7">
-        <p className="mb-1 text-sm font-semibold text-[#1f765f]">Student records</p>
-        <h1 className="text-3xl font-bold tracking-[-0.04em] text-[#172825] md:text-4xl">Students</h1>
-        <p className="mt-2 text-sm leading-6 text-[#6e7a76] md:text-base">
-          View the learners currently stored in TutorDesk.
-        </p>
+      <header className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <p className="mb-1 text-sm font-semibold text-[#1f765f]">Student records</p>
+          <h1 className="text-3xl font-bold tracking-[-0.04em] text-[#172825] md:text-4xl">Students</h1>
+          <p className="mt-2 text-sm leading-6 text-[#6e7a76] md:text-base">View and add the learners stored in TutorDesk.</p>
+        </div>
+        {!showAddForm && <button type="button" onClick={() => setShowAddForm(true)} className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#1f765f] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(31,118,95,0.18)] hover:bg-[#185f4d]">
+          <Plus size={18} aria-hidden="true" /> Add student
+        </button>}
       </header>
+
+      {showAddForm && <AddStudentForm
+        onCancel={() => setShowAddForm(false)}
+        onCreated={(student) => {
+          setStudents((current) => [...current, student].sort((left, right) =>
+            left.last_name.localeCompare(right.last_name) || left.first_name.localeCompare(right.first_name)
+          ));
+          setShowAddForm(false);
+          setStatus("ready");
+        }}
+      />}
 
       {status === "loading" && students.length === 0 && (
         <div role="status" className="flex min-h-64 items-center justify-center gap-3 rounded-3xl border border-[#dfe2d9] bg-white font-semibold text-[#1f765f]">
@@ -98,7 +114,7 @@ export function StudentsPage() {
           <div>
             <UsersRound className="mx-auto mb-4 text-[#6b817b]" size={32} aria-hidden="true" />
             <h2 className="text-lg font-bold">No students yet</h2>
-            <p className="mt-2 text-sm text-[#77817e]">Add your first student through Django admin.</p>
+            <p className="mt-2 text-sm text-[#77817e]">Use Add student to create your first record.</p>
           </div>
         </div>
       )}

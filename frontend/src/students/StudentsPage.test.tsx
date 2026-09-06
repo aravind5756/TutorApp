@@ -2,10 +2,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { getStudents, type StudentListResponse } from "../api/students";
+import { createStudent, getStudents, type StudentListResponse } from "../api/students";
 import { StudentsPage } from "./StudentsPage";
 
-vi.mock("../api/students", () => ({ getStudents: vi.fn() }));
+vi.mock("../api/students", () => ({ getStudents: vi.fn(), createStudent: vi.fn() }));
 
 const firstPage: StudentListResponse = {
   count: 2,
@@ -22,6 +22,10 @@ const firstPage: StudentListResponse = {
 
 beforeEach(() => {
   vi.mocked(getStudents).mockResolvedValue(firstPage);
+  vi.mocked(createStudent).mockResolvedValue({
+    id: 3, first_name: "Zoe", last_name: "Clarke", year_group: "Year 9",
+    subjects: "English", is_active: true,
+  });
 });
 
 afterEach(() => {
@@ -75,4 +79,16 @@ test("loads the next page without replacing existing students", async () => {
   expect(await screen.findByText("Zoe Clarke")).toBeInTheDocument();
   expect(screen.getByText("Maya Thompson")).toBeInTheDocument();
   expect(getStudents).toHaveBeenLastCalledWith(2);
+});
+
+test("opens the add form and shows a newly created student", async () => {
+  render(<StudentsPage />);
+  await screen.findByText("Maya Thompson");
+  await userEvent.click(screen.getByRole("button", { name: "Add student" }));
+  await userEvent.type(screen.getByLabelText("First name"), "Zoe");
+  await userEvent.type(screen.getByLabelText("Last name"), "Clarke");
+  await userEvent.click(screen.getByRole("button", { name: "Add student" }));
+
+  expect(await screen.findByText("Zoe Clarke")).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Add student" })).not.toBeInTheDocument();
 });
