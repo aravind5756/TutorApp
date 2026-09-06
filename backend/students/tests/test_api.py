@@ -1,5 +1,6 @@
 import pytest
 from django.urls import reverse
+from django.utils.dateparse import parse_datetime
 from rest_framework.test import APIClient
 
 from accounts.models import User
@@ -161,3 +162,69 @@ def test_list_endpoint_does_not_allow_writes(tutor_client, student, method):
     student.refresh_from_db()
     assert student.first_name == "Maya"
     assert StudentProfile.objects.count() == 1
+
+
+def test_tutor_can_view_a_students_complete_record(tutor_client, student):
+    student.is_active = False
+    student.save()
+
+    response = tutor_client.get(reverse("api:student-detail", args=[student.pk]))
+
+    assert response.status_code == 200
+    data = response.json()
+    assert parse_datetime(data.pop("created_at")) == student.created_at
+    assert parse_datetime(data.pop("updated_at")) == student.updated_at
+    assert data == {
+        "id": student.pk,
+        "first_name": "Maya",
+        "last_name": "Thompson",
+        "year_group": "Year 11",
+        "subjects": "Mathematics",
+        "goals": "Private goal",
+        "learning_needs": "Private needs",
+        "is_active": False,
+    }
+
+
+def test_anonymous_user_cannot_view_student_details(client, student):
+    response = client.get(reverse("api:student-detail", args=[student.pk]))
+
+    assert response.status_code == 403
+    assert b"Maya" not in response.content
+    assert b"Private needs" not in response.content
+
+
+@pytest.mark.parametrize("role", [User.Role.STUDENT, User.Role.GUARDIAN])
+def test_non_tutor_cannot_view_student_details(client, student, role):
+    user = User.objects.create_user(
+        email=f"{role}-detail@example.com",
+        role=role,
+        is_staff=True,
+        is_superuser=True,
+    )
+    client.force_login(user)
+
+    response = client.get(reverse("api:student-detail", args=[student.pk]))
+
+    assert response.status_code == 403
+    assert b"Private goal" not in response.content
+    assert b"Private needs" not in response.content
+
+
+def test_missing_student_detail_returns_not_found(tutor_client):
+    response = tutor_client.get(reverse("api:student-detail", args=[999999]))
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+def test_student_detail_endpoint_does_not_allow_writes(tutor_client, student, method):
+    response = getattr(tutor_client, method)(
+        reverse("api:student-detail", args=[student.pk]),
+        {"first_name": "Changed"},
+        format="json",
+    )
+
+    assert response.status_code == 405
+    student.refresh_from_db()
+    assert student.first_name == "Maya"
