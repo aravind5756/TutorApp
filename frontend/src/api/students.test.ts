@@ -1,6 +1,6 @@
 import { afterEach, test, expect, vi } from "vitest";
 
-import { createStudent, getStudents } from "./students";
+import { createStudent, getStudent, getStudents } from "./students";
 
 vi.mock("./auth", () => ({ getCsrfToken: vi.fn().mockResolvedValue("csrf-token") }));
 
@@ -59,5 +59,45 @@ test("creates a student with CSRF protection", async () => {
   expect(JSON.parse(request.body as string)).toEqual({
     first_name: "Maya", last_name: "Thompson", year_group: "Year 11",
     subjects: "Mathematics",
+  });
+});
+
+test("loads an individual student's complete record", async () => {
+  const student = {
+    id: 7,
+    first_name: "Maya",
+    last_name: "Thompson",
+    year_group: "Year 11",
+    subjects: "Mathematics",
+    goals: "Improve confidence with algebra",
+    learning_needs: "Benefits from worked examples",
+    is_active: true,
+    created_at: "2026-09-01T10:00:00+01:00",
+    updated_at: "2026-09-06T19:00:00+01:00",
+  };
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => student,
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(getStudent(7)).resolves.toEqual(student);
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/v1/students/7/",
+    expect.objectContaining({ credentials: "include" }),
+  );
+});
+
+test("reports when an individual student does not exist", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: false,
+    status: 404,
+    json: async () => ({ detail: "No StudentProfile matches the given query." }),
+  }));
+
+  await expect(getStudent(999999)).rejects.toMatchObject({
+    status: 404,
+    message: "No StudentProfile matches the given query.",
   });
 });
