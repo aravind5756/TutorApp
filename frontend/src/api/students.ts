@@ -17,6 +17,13 @@ export type StudentListResponse = {
   results: StudentSummary[];
 };
 
+export type StudentDetail = StudentSummary & {
+  goals: string;
+  learning_needs: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type NewStudent = Pick<
   StudentSummary,
   "first_name" | "last_name" | "year_group" | "subjects"
@@ -25,6 +32,10 @@ export type NewStudent = Pick<
 export function getStudents(page = 1): Promise<StudentListResponse> {
   const query = page > 1 ? `?page=${page}` : "";
   return apiRequest<StudentListResponse>(`/students/${query}`);
+}
+
+export function getStudent(studentId: number): Promise<StudentDetail> {
+  return apiRequest<StudentDetail>(`/students/${studentId}/`);
 }
 
 export async function createStudent(student: NewStudent): Promise<StudentSummary> {
