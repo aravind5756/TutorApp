@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, ArrowLeft, BookOpen, LoaderCircle, LockKeyhole } from "lucide-react";
+import { AlertCircle, ArrowLeft, BookOpen, LoaderCircle, LockKeyhole, Pencil } from "lucide-react";
 
 import { getStudent, type StudentDetail } from "../api/students";
+import { EditStudentForm } from "./EditStudentForm";
 
 type StudentDetailsProps = {
   studentId: number;
   onBack: () => void;
+  onStudentUpdated?: (student: StudentDetail) => void;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" });
 
-export function StudentDetails({ studentId, onBack }: StudentDetailsProps) {
+export function StudentDetails({ studentId, onBack, onStudentUpdated }: StudentDetailsProps) {
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [reloadCount, setReloadCount] = useState(0);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -52,7 +55,19 @@ export function StudentDetails({ studentId, onBack }: StudentDetailsProps) {
         </div>
       )}
 
-      {status === "ready" && student && (
+      {status === "ready" && student && editing && (
+        <EditStudentForm
+          student={student}
+          onCancel={() => setEditing(false)}
+          onUpdated={(updatedStudent) => {
+            setStudent(updatedStudent);
+            setEditing(false);
+            onStudentUpdated?.(updatedStudent);
+          }}
+        />
+      )}
+
+      {status === "ready" && student && !editing && (
         <>
           <header className="mb-6 rounded-3xl bg-[#203e3a] p-6 text-white shadow-[0_14px_34px_rgba(28,60,54,0.16)] md:p-8">
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
@@ -66,9 +81,12 @@ export function StudentDetails({ studentId, onBack }: StudentDetailsProps) {
                   <p className="mt-1 text-sm text-[#c7d9d5]">{student.year_group || "Year group not set"}</p>
                 </div>
               </div>
-              <span className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${student.is_active ? "bg-[#d9efe9] text-[#205b4d]" : "bg-white/12 text-[#d9e3e0]"}`}>
-                {student.is_active ? "Active student" : "Inactive student"}
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${student.is_active ? "bg-[#d9efe9] text-[#205b4d]" : "bg-white/12 text-[#d9e3e0]"}`}>{student.is_active ? "Active student" : "Inactive student"}</span>
+                <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-sm font-semibold text-[#214c42] hover:bg-[#edf5f2]">
+                  <Pencil size={16} aria-hidden="true" /> Edit student
+                </button>
+              </div>
             </div>
           </header>
 

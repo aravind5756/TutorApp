@@ -71,7 +71,17 @@ export function StudentsPage() {
   }, []);
 
   if (selectedStudentId !== null) {
-    return <StudentDetails studentId={selectedStudentId} onBack={() => setSelectedStudentId(null)} />;
+    return <StudentDetails
+      studentId={selectedStudentId}
+      onBack={() => setSelectedStudentId(null)}
+      onStudentUpdated={(updatedStudent) => {
+        setStudents((current) => current.map((student) =>
+          student.id === updatedStudent.id ? updatedStudent : student
+        ).sort((left, right) =>
+          left.last_name.localeCompare(right.last_name) || left.first_name.localeCompare(right.first_name)
+        ));
+      }}
+    />;
   }
 
   return (
