@@ -1,14 +1,15 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { createStudent, getStudent, getStudents, type StudentListResponse } from "../api/students";
+import { createStudent, getStudent, getStudents, updateStudent, type StudentListResponse } from "../api/students";
 import { StudentsPage } from "./StudentsPage";
 
 vi.mock("../api/students", () => ({
   createStudent: vi.fn(),
   getStudent: vi.fn(),
   getStudents: vi.fn(),
+  updateStudent: vi.fn(),
 }));
 
 const firstPage: StudentListResponse = {
@@ -36,6 +37,13 @@ beforeEach(() => {
     learning_needs: "Use worked examples", is_active: true,
     created_at: "2026-09-01T10:00:00+01:00",
     updated_at: "2026-09-06T19:00:00+01:00",
+  });
+  vi.mocked(updateStudent).mockResolvedValue({
+    id: 1, first_name: "Aaron", last_name: "Adams", year_group: "Year 12",
+    subjects: "Physics", goals: "Prepare for A-level study",
+    learning_needs: "Use worked examples", is_active: false,
+    created_at: "2026-09-01T10:00:00+01:00",
+    updated_at: "2026-09-07T19:00:00+01:00",
   });
 });
 
@@ -116,4 +124,26 @@ test("opens a student record and returns to the list", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Back to students" }));
   expect(await screen.findByRole("heading", { name: "Students" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "View Maya Thompson" })).toBeInTheDocument();
+});
+
+test("keeps the student list in sync after editing a record", async () => {
+  render(<StudentsPage />);
+  await screen.findByText("Maya Thompson");
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole("button", { name: "View Maya Thompson" }));
+  await screen.findByRole("heading", { name: "Maya Thompson" });
+  await user.click(screen.getByRole("button", { name: "Edit student" }));
+  await user.clear(screen.getByLabelText("First name"));
+  await user.type(screen.getByLabelText("First name"), "Aaron");
+  await user.clear(screen.getByLabelText("Last name"));
+  await user.type(screen.getByLabelText("Last name"), "Adams");
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+  await screen.findByRole("heading", { name: "Aaron Adams" });
+  await user.click(screen.getByRole("button", { name: "Back to students" }));
+
+  const updatedCard = screen.getByRole("button", { name: "View Aaron Adams" });
+  expect(updatedCard).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "View Maya Thompson" })).not.toBeInTheDocument();
+  expect(within(updatedCard).getByText("Inactive")).toBeInTheDocument();
 });

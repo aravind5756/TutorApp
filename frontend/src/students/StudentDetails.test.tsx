@@ -2,10 +2,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { getStudent, type StudentDetail } from "../api/students";
+import { getStudent, updateStudent, type StudentDetail } from "../api/students";
 import { StudentDetails } from "./StudentDetails";
 
-vi.mock("../api/students", () => ({ getStudent: vi.fn() }));
+vi.mock("../api/students", () => ({ getStudent: vi.fn(), updateStudent: vi.fn() }));
 
 const student: StudentDetail = {
   id: 7,
@@ -22,6 +22,7 @@ const student: StudentDetail = {
 
 beforeEach(() => {
   vi.mocked(getStudent).mockResolvedValue(student);
+  vi.mocked(updateStudent).mockResolvedValue(student);
 });
 
 afterEach(() => {
@@ -83,4 +84,42 @@ test("returns to the student list", async () => {
 
   await userEvent.click(screen.getByRole("button", { name: "Back to students" }));
   expect(onBack).toHaveBeenCalledTimes(1);
+});
+
+test("opens the edit form and displays the saved record", async () => {
+  const updatedStudent = {
+    ...student,
+    first_name: "Maya-Rose",
+    goals: "Prepare for A-level study",
+  };
+  vi.mocked(updateStudent).mockResolvedValue(updatedStudent);
+  const onStudentUpdated = vi.fn();
+  render(<StudentDetails studentId={7} onBack={vi.fn()} onStudentUpdated={onStudentUpdated} />);
+  const user = userEvent.setup();
+  await screen.findByRole("heading", { name: "Maya Thompson" });
+
+  await user.click(screen.getByRole("button", { name: "Edit student" }));
+  expect(screen.getByRole("heading", { name: "Edit Maya Thompson" })).toBeInTheDocument();
+  await user.clear(screen.getByLabelText("First name"));
+  await user.type(screen.getByLabelText("First name"), "Maya-Rose");
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+  expect(await screen.findByRole("heading", { name: "Maya-Rose Thompson" })).toBeInTheDocument();
+  expect(screen.getByText("Prepare for A-level study")).toBeInTheDocument();
+  expect(onStudentUpdated).toHaveBeenCalledWith(updatedStudent);
+});
+
+test("cancels editing and returns to the unchanged record", async () => {
+  render(<StudentDetails studentId={7} onBack={vi.fn()} />);
+  const user = userEvent.setup();
+  await screen.findByRole("heading", { name: "Maya Thompson" });
+
+  await user.click(screen.getByRole("button", { name: "Edit student" }));
+  await user.clear(screen.getByLabelText("First name"));
+  await user.type(screen.getByLabelText("First name"), "Unsaved name");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+  expect(screen.getByRole("heading", { name: "Maya Thompson" })).toBeInTheDocument();
+  expect(screen.queryByDisplayValue("Unsaved name")).not.toBeInTheDocument();
+  expect(updateStudent).not.toHaveBeenCalled();
 });
