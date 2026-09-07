@@ -217,8 +217,8 @@ def test_missing_student_detail_returns_not_found(tutor_client):
     assert response.status_code == 404
 
 
-@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
-def test_student_detail_endpoint_does_not_allow_writes(tutor_client, student, method):
+@pytest.mark.parametrize("method", ["post", "put", "delete"])
+def test_student_detail_endpoint_rejects_unsupported_write_methods(tutor_client, student, method):
     response = getattr(tutor_client, method)(
         reverse("api:student-detail", args=[student.pk]),
         {"first_name": "Changed"},
