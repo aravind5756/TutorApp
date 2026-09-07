@@ -2,10 +2,14 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { createStudent, getStudents, type StudentListResponse } from "../api/students";
+import { createStudent, getStudent, getStudents, type StudentListResponse } from "../api/students";
 import { StudentsPage } from "./StudentsPage";
 
-vi.mock("../api/students", () => ({ getStudents: vi.fn(), createStudent: vi.fn() }));
+vi.mock("../api/students", () => ({
+  createStudent: vi.fn(),
+  getStudent: vi.fn(),
+  getStudents: vi.fn(),
+}));
 
 const firstPage: StudentListResponse = {
   count: 2,
@@ -25,6 +29,13 @@ beforeEach(() => {
   vi.mocked(createStudent).mockResolvedValue({
     id: 3, first_name: "Zoe", last_name: "Clarke", year_group: "Year 9",
     subjects: "English", is_active: true,
+  });
+  vi.mocked(getStudent).mockResolvedValue({
+    id: 1, first_name: "Maya", last_name: "Thompson", year_group: "Year 11",
+    subjects: "Mathematics", goals: "Prepare for GCSE exams",
+    learning_needs: "Use worked examples", is_active: true,
+    created_at: "2026-09-01T10:00:00+01:00",
+    updated_at: "2026-09-06T19:00:00+01:00",
   });
 });
 
@@ -91,4 +102,18 @@ test("opens the add form and shows a newly created student", async () => {
 
   expect(await screen.findByText("Zoe Clarke")).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Add student" })).not.toBeInTheDocument();
+});
+
+test("opens a student record and returns to the list", async () => {
+  render(<StudentsPage />);
+  await screen.findByText("Maya Thompson");
+
+  await userEvent.click(screen.getByRole("button", { name: "View Maya Thompson" }));
+  expect(await screen.findByRole("heading", { name: "Maya Thompson" })).toBeInTheDocument();
+  expect(getStudent).toHaveBeenCalledWith(1);
+  expect(screen.getByText("Prepare for GCSE exams")).toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole("button", { name: "Back to students" }));
+  expect(await screen.findByRole("heading", { name: "Students" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "View Maya Thompson" })).toBeInTheDocument();
 });
