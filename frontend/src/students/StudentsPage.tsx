@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, LoaderCircle, Plus, UsersRound } from "lucide-react";
+import { AlertCircle, ChevronRight, LoaderCircle, Plus, UsersRound } from "lucide-react";
 
 import { getStudents, type StudentSummary } from "../api/students";
 import { AddStudentForm } from "./AddStudentForm";
+import { StudentDetails } from "./StudentDetails";
 
-function StudentCard({ student }: { student: StudentSummary }) {
+function StudentCard({ student, onSelect }: { student: StudentSummary; onSelect: () => void }) {
   const subjects = student.subjects
     .split(/[,\n]/)
     .map((subject) => subject.trim())
     .filter(Boolean);
 
   return (
-    <li className="rounded-2xl border border-[#e0e2da] bg-white p-5 shadow-[0_8px_30px_rgba(27,47,43,0.04)]">
+    <li className="rounded-2xl border border-[#e0e2da] bg-white shadow-[0_8px_30px_rgba(27,47,43,0.04)] transition hover:-translate-y-0.5 hover:border-[#b9cec6] hover:shadow-[0_12px_34px_rgba(27,47,43,0.08)]">
+      <button type="button" onClick={onSelect} className="w-full p-5 text-left" aria-label={`View ${student.first_name} ${student.last_name}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#d9efe9] font-bold text-[#205b4d]">
@@ -26,13 +28,10 @@ function StudentCard({ student }: { student: StudentSummary }) {
             </p>
           </div>
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-          student.is_active
-            ? "bg-[#e4f3ed] text-[#246c58]"
-            : "bg-[#eceee9] text-[#68736f]"
-        }`}>
-          {student.is_active ? "Active" : "Inactive"}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${student.is_active ? "bg-[#e4f3ed] text-[#246c58]" : "bg-[#eceee9] text-[#68736f]"}`}>{student.is_active ? "Active" : "Inactive"}</span>
+          <ChevronRight size={18} className="text-[#9aa6a2]" aria-hidden="true" />
+        </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {subjects.length ? subjects.map((subject) => (
@@ -41,6 +40,7 @@ function StudentCard({ student }: { student: StudentSummary }) {
           </span>
         )) : <span className="text-sm text-[#8a9490]">No subjects added</span>}
       </div>
+      </button>
     </li>
   );
 }
@@ -51,6 +51,7 @@ export function StudentsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
 
   async function loadStudents(pageToLoad: number) {
     setStatus("loading");
@@ -68,6 +69,10 @@ export function StudentsPage() {
   useEffect(() => {
     void loadStudents(1);
   }, []);
+
+  if (selectedStudentId !== null) {
+    return <StudentDetails studentId={selectedStudentId} onBack={() => setSelectedStudentId(null)} />;
+  }
 
   return (
     <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-8 lg:px-10 lg:py-9">
@@ -125,7 +130,7 @@ export function StudentsPage() {
             Showing {students.length} student{students.length === 1 ? "" : "s"}
           </p>
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {students.map((student) => <StudentCard key={student.id} student={student} />)}
+            {students.map((student) => <StudentCard key={student.id} student={student} onSelect={() => setSelectedStudentId(student.id)} />)}
           </ul>
           {hasMore && status !== "error" && (
             <div className="mt-6 flex justify-center">
