@@ -29,6 +29,19 @@ export type NewStudent = Pick<
   "first_name" | "last_name" | "year_group" | "subjects"
 >;
 
+export type StudentUpdates = Partial<
+  Pick<
+    StudentDetail,
+    | "first_name"
+    | "last_name"
+    | "year_group"
+    | "subjects"
+    | "goals"
+    | "learning_needs"
+    | "is_active"
+  >
+>;
+
 export function getStudents(page = 1): Promise<StudentListResponse> {
   const query = page > 1 ? `?page=${page}` : "";
   return apiRequest<StudentListResponse>(`/students/${query}`);
@@ -36,6 +49,22 @@ export function getStudents(page = 1): Promise<StudentListResponse> {
 
 export function getStudent(studentId: number): Promise<StudentDetail> {
   return apiRequest<StudentDetail>(`/students/${studentId}/`);
+}
+
+export async function updateStudent(
+  studentId: number,
+  updates: StudentUpdates,
+): Promise<StudentDetail> {
+  const token = await getCsrfToken();
+
+  return apiRequest<StudentDetail>(`/students/${studentId}/`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": token,
+    },
+    body: JSON.stringify(updates),
+  });
 }
 
 export async function createStudent(student: NewStudent): Promise<StudentSummary> {
