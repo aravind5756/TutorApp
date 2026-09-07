@@ -228,3 +228,134 @@ def test_student_detail_endpoint_rejects_unsupported_write_methods(tutor_client,
     assert response.status_code == 405
     student.refresh_from_db()
     assert student.first_name == "Maya"
+
+
+def test_tutor_can_update_a_students_complete_record(tutor_client, student):
+    response = tutor_client.patch(
+        reverse("api:student-detail", args=[student.pk]),
+        {
+            "first_name": "  Maya-Rose  ",
+            "last_name": "  Thompson-Smith  ",
+            "year_group": "Year 12",
+            "subjects": "Mathematics\nPhysics",
+            "goals": "Prepare for A-level study",
+            "learning_needs": "Use visual examples",
+            "is_active": False,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    student.refresh_from_db()
+    assert student.first_name == "Maya-Rose"
+    assert student.last_name == "Thompson-Smith"
+    assert student.year_group == "Year 12"
+    assert student.subjects == "Mathematics\nPhysics"
+    assert student.goals == "Prepare for A-level study"
+    assert student.learning_needs == "Use visual examples"
+    assert not student.is_active
+    assert response.json()["learning_needs"] == "Use visual examples"
+
+
+def test_student_update_only_changes_submitted_fields(tutor_client, student):
+    response = tutor_client.patch(
+        reverse("api:student-detail", args=[student.pk]),
+        {"goals": "Reach grade 8"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    student.refresh_from_db()
+    assert student.goals == "Reach grade 8"
+    assert student.first_name == "Maya"
+    assert student.last_name == "Thompson"
+    assert student.learning_needs == "Private needs"
+
+
+@pytest.mark.parametrize("field", ["first_name", "last_name"])
+def test_student_update_rejects_blank_names(tutor_client, student, field):
+    response = tutor_client.patch(
+        reverse("api:student-detail", args=[student.pk]),
+        {field: "   "},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert field in response.json()
+    student.refresh_from_db()
+    assert student.first_name == "Maya"
+    assert student.last_name == "Thompson"
+
+
+def test_anonymous_user_cannot_update_student_details(client, student):
+    response = client.patch(
+        reverse("api:student-detail", args=[student.pk]),
+        {"goals": "Changed"},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    student.refresh_from_db()
+    assert student.goals == "Private goal"
+
+
+@pytest.mark.parametrize("role", [User.Role.STUDENT, User.Role.GUARDIAN])
+def test_non_tutor_cannot_update_student_details(client, student, role):
+    user = User.objects.create_user(
+        email=f"{role}-update@example.com",
+        role=role,
+        is_staff=True,
+        is_superuser=True,
+    )
+    client.force_login(user)
+
+    response = client.patch(
+        reverse("api:student-detail", args=[student.pk]),
+        {"learning_needs": "Changed private notes"},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    student.refresh_from_db()
+    assert student.learning_needs == "Private needs"
+
+
+def test_student_update_requires_csrf(student):
+    client = APIClient(enforce_csrf_checks=True)
+    tutor = User.objects.create_user(email="csrf-tutor@example.com", role=User.Role.TUTOR)
+    client.force_login(tutor)
+
+    response = client.patch(
+        reverse("api:student-detail", args=[student.pk]),
+        {"goals": "Changed"},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    student.refresh_from_db()
+    assert student.goals == "Private goal"
+
+
+def test_student_update_ignores_read_only_system_fields(tutor_client, student):
+    original_created_at = student.created_at
+    response = tutor_client.patch(
+        reverse("api:student-detail", args=[student.pk]),
+        {"id": 999999, "created_at": None, "updated_at": None},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    student.refresh_from_db()
+    assert student.pk != 999999
+    assert student.created_at == original_created_at
+    assert response.json()["id"] == student.pk
+
+
+def test_updating_a_missing_student_returns_not_found(tutor_client):
+    response = tutor_client.patch(
+        reverse("api:student-detail", args=[999999]),
+        {"goals": "Changed"},
+        format="json",
+    )
+
+    assert response.status_code == 404
