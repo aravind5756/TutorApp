@@ -1,6 +1,6 @@
 import { afterEach, test, expect, vi } from "vitest";
 
-import { createStudent, getStudent, getStudents } from "./students";
+import { createStudent, getStudent, getStudents, updateStudent } from "./students";
 
 vi.mock("./auth", () => ({ getCsrfToken: vi.fn().mockResolvedValue("csrf-token") }));
 
@@ -99,5 +99,53 @@ test("reports when an individual student does not exist", async () => {
   await expect(getStudent(999999)).rejects.toMatchObject({
     status: 404,
     message: "No StudentProfile matches the given query.",
+  });
+});
+
+test("updates selected student fields with CSRF protection", async () => {
+  const updatedStudent = {
+    id: 7,
+    first_name: "Maya",
+    last_name: "Thompson",
+    year_group: "Year 12",
+    subjects: "Mathematics",
+    goals: "Prepare for A-level study",
+    learning_needs: "Benefits from worked examples",
+    is_active: true,
+    created_at: "2026-09-01T10:00:00+01:00",
+    updated_at: "2026-09-07T15:00:00+01:00",
+  };
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => updatedStudent,
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(updateStudent(7, {
+    year_group: "Year 12",
+    goals: "Prepare for A-level study",
+  })).resolves.toEqual(updatedStudent);
+
+  const request = fetchMock.mock.calls[0][1] as RequestInit;
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/students/7/");
+  expect(request.method).toBe("PATCH");
+  expect((request.headers as Headers).get("X-CSRFToken")).toBe("csrf-token");
+  expect(JSON.parse(request.body as string)).toEqual({
+    year_group: "Year 12",
+    goals: "Prepare for A-level study",
+  });
+});
+
+test("reports a rejected student update", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: false,
+    status: 400,
+    json: async () => ({ first_name: ["This field may not be blank."] }),
+  }));
+
+  await expect(updateStudent(7, { first_name: "" })).rejects.toMatchObject({
+    status: 400,
+    message: "The request could not be completed.",
   });
 });
