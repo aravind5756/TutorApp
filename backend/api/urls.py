@@ -7,6 +7,7 @@ app_name = "api"
 
 urlpatterns = [
     path("auth/", include("accounts.api.urls")),
+    path("bookings/", include("bookings.api.urls")),
     path("students/", include("students.api.urls")),
     path("health/", health_check, name="health-check"),
 ]
