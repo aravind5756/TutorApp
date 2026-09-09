@@ -257,13 +257,16 @@ function Dashboard() {
               <Bell size={19} />
               <span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[#dd7559]" />
             </button>
-            <button
-              type="button"
-              className="ml-1 inline-flex items-center gap-2 rounded-xl bg-[#1f765f] px-3.5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(31,118,95,0.18)] hover:bg-[#185f4d]"
-            >
-              <Plus size={18} />
-              <span className="hidden sm:inline">New booking</span>
-            </button>
+            {activePage !== "Bookings" && (
+              <button
+                type="button"
+                onClick={() => setActivePage("Bookings")}
+                className="ml-1 inline-flex items-center gap-2 rounded-xl bg-[#1f765f] px-3.5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(31,118,95,0.18)] hover:bg-[#185f4d]"
+              >
+                <Plus size={18} />
+                <span className="hidden sm:inline">New booking</span>
+              </button>
+            )}
           </div>
         </header>
 

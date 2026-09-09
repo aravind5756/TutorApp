@@ -5,6 +5,7 @@ import {
   Clock3,
   LoaderCircle,
   MapPin,
+  Plus,
 } from "lucide-react";
 
 import {
@@ -12,6 +13,7 @@ import {
   type BookingStatus,
   type BookingSummary,
 } from "../api/bookings";
+import { NewBookingForm } from "./NewBookingForm";
 
 const statusStyles: Record<BookingStatus, string> = {
   requested: "bg-[#fff1cf] text-[#8a5b0a]",
@@ -75,6 +77,7 @@ export function BookingsPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [showNewBookingForm, setShowNewBookingForm] = useState(false);
 
   async function loadBookings(pageToLoad: number) {
     setStatus("loading");
@@ -97,15 +100,35 @@ export function BookingsPage() {
 
   return (
     <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-8 lg:px-10 lg:py-9">
-      <header className="mb-7">
-        <p className="mb-1 text-sm font-semibold text-[#1f765f]">Lesson schedule</p>
-        <h1 className="text-3xl font-bold tracking-[-0.04em] text-[#172825] md:text-4xl">
-          Bookings
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-[#6e7a76] md:text-base">
-          View requested, confirmed, and completed lessons.
-        </p>
+      <header className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <p className="mb-1 text-sm font-semibold text-[#1f765f]">Lesson schedule</p>
+          <h1 className="text-3xl font-bold tracking-[-0.04em] text-[#172825] md:text-4xl">
+            Bookings
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-[#6e7a76] md:text-base">
+            View requested, confirmed, and completed lessons.
+          </p>
+        </div>
+        {!showNewBookingForm && (
+          <button type="button" onClick={() => setShowNewBookingForm(true)} className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#1f765f] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(31,118,95,0.18)] hover:bg-[#185f4d]">
+            <Plus size={18} aria-hidden="true" /> New booking
+          </button>
+        )}
       </header>
+
+      {showNewBookingForm && (
+        <NewBookingForm
+          onCancel={() => setShowNewBookingForm(false)}
+          onCreated={(booking) => {
+            setBookings((current) => [...current, booking].sort((left, right) =>
+              new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime()
+            ));
+            setShowNewBookingForm(false);
+            setStatus("ready");
+          }}
+        />
+      )}
 
       {status === "loading" && bookings.length === 0 && (
         <div role="status" className="flex min-h-64 items-center justify-center gap-3 rounded-3xl border border-[#dfe2d9] bg-white font-semibold text-[#1f765f]">
