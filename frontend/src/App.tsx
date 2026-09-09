@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LoginPage } from "./auth/LoginPage";
 import { SignOutButton } from "./auth/SignOutButton";
 import { useAuth } from "./auth/useAuth";
+import { BookingsPage } from "./bookings/BookingsPage";
 import { StudentsPage } from "./students/StudentsPage";
 import {
   Bell,
@@ -45,12 +46,12 @@ type NavItem = {
   icon: LucideIcon;
 };
 
-type Page = "Dashboard" | "Students";
+type Page = "Dashboard" | "Students" | "Bookings";
 
 const navigation: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard },
   { label: "Students", icon: UsersRound },
-  { label: "Calendar", icon: CalendarDays },
+  { label: "Bookings", icon: CalendarDays },
   { label: "Lessons", icon: BookOpen },
   { label: "Progress", icon: TrendingUp },
   { label: "Invoices", icon: FileText },
@@ -120,7 +121,7 @@ function Sidebar({
       <nav aria-label="Primary navigation" className="space-y-1">
         {navigation.map(({ label, icon: Icon }) => {
           const isActive = label === activePage;
-          const isAvailable = label === "Dashboard" || label === "Students";
+          const isAvailable = label === "Dashboard" || label === "Students" || label === "Bookings";
           return (
             <a
               key={label}
@@ -266,7 +267,7 @@ function Dashboard() {
           </div>
         </header>
 
-        {activePage === "Students" ? <StudentsPage /> : <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-8 lg:px-10 lg:py-9">
+        {activePage === "Students" ? <StudentsPage /> : activePage === "Bookings" ? <BookingsPage /> : <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-8 lg:px-10 lg:py-9">
           <section className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <p className="mb-1 text-sm font-semibold text-[#1f765f]">
