@@ -5,10 +5,12 @@ import { afterEach, beforeEach, test, vi } from "vitest";
 import App from "./App";
 import { getCurrentUser, login, logout, type AuthenticatedUser } from "./api/auth";
 import { ApiError } from "./api/client";
+import * as bookingsApi from "./api/bookings";
 import * as studentsApi from "./api/students";
 import { AuthProvider } from "./auth/AuthContext";
 
 vi.mock("./api/auth", () => ({ getCurrentUser: vi.fn(), login: vi.fn(), logout: vi.fn() }));
+vi.mock("./api/bookings", () => ({ getBookings: vi.fn() }));
 vi.mock("./api/students", () => ({ getStudents: vi.fn() }));
 
 const tutor: AuthenticatedUser = {
@@ -19,6 +21,17 @@ beforeEach(() => {
   vi.mocked(getCurrentUser).mockRejectedValue(new ApiError("Not authenticated.", 403));
   vi.mocked(login).mockResolvedValue(tutor);
   vi.mocked(logout).mockResolvedValue(undefined);
+  vi.mocked(bookingsApi.getBookings).mockResolvedValue({
+    count: 1, next: null, previous: null, results: [{
+      id: 3,
+      student: { id: 1, first_name: "Maya", last_name: "Thompson", year_group: "Year 11" },
+      starts_at: "2026-09-10T16:00:00",
+      ends_at: "2026-09-10T17:00:00",
+      status: "confirmed",
+      format: "online",
+      location: "",
+    }],
+  });
   vi.mocked(studentsApi.getStudents).mockResolvedValue({
     count: 1, next: null, previous: null, results: [{
       id: 1, first_name: "Maya", last_name: "Thompson", year_group: "Year 11",
@@ -118,6 +131,18 @@ test("a tutor can open the Students page from the navigation", async () => {
   expect(await screen.findByText("Maya Thompson")).toBeInTheDocument();
   expect(screen.queryByText("Lessons this week")).not.toBeInTheDocument();
   expect(studentsApi.getStudents).toHaveBeenCalledWith(1);
+});
+
+test("a tutor can open the Bookings page from the navigation", async () => {
+  vi.mocked(getCurrentUser).mockResolvedValue(tutor);
+  renderApp();
+  await screen.findByRole("heading", { name: "Welcome back, Alex" });
+
+  await userEvent.click(screen.getByRole("link", { name: "Bookings" }));
+
+  expect(await screen.findByRole("heading", { name: "Bookings" })).toBeInTheDocument();
+  expect(await screen.findByText("Maya Thompson")).toBeInTheDocument();
+  expect(bookingsApi.getBookings).toHaveBeenCalledWith(1);
 });
 
 test.each(["student", "guardian"] as const)("%s accounts cannot see the tutor dashboard", async (role) => {
