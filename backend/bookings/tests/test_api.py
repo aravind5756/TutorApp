@@ -49,6 +49,18 @@ def booking(student):
     )
 
 
+def booking_payload(student, **changes):
+    payload = {
+        "student": student.pk,
+        "starts_at": START.isoformat(),
+        "ends_at": (START + timedelta(hours=1)).isoformat(),
+        "format": Booking.Format.ONLINE,
+        "location": "Video call",
+    }
+    payload.update(changes)
+    return payload
+
+
 def test_anonymous_user_cannot_list_bookings(client, booking):
     response = client.get(reverse("api:booking-list"))
 
@@ -168,6 +180,154 @@ def test_booking_list_returns_records_in_groups_of_twenty_five(tutor_client, stu
     assert second_page["previous"] is not None
     booking_ids = [record["id"] for record in first_page["results"] + second_page["results"]]
     assert booking_ids == list(Booking.objects.values_list("pk", flat=True))
+
+
+def test_tutor_can_create_a_booking(tutor_client, student):
+    response = tutor_client.post(
+        reverse("api:booking-list"),
+        booking_payload(student),
+        format="json",
+    )
+
+    assert response.status_code == 201
+    created = Booking.objects.get()
+    data = response.json()
+    assert data["id"] == created.pk
+    assert data["student"] == {
+        "id": student.pk,
+        "first_name": "Maya",
+        "last_name": "Thompson",
+        "year_group": "Year 11",
+    }
+    assert parse_datetime(data["starts_at"]) == START
+    assert parse_datetime(data["ends_at"]) == START + timedelta(hours=1)
+    assert data["status"] == Booking.Status.REQUESTED
+    assert data["format"] == Booking.Format.ONLINE
+    assert data["location"] == "Video call"
+    assert "learning_needs" not in data["student"]
+
+
+def test_anonymous_user_cannot_create_a_booking(client, student):
+    response = client.post(
+        reverse("api:booking-list"),
+        booking_payload(student),
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert Booking.objects.count() == 0
+
+
+@pytest.mark.parametrize("role", [User.Role.STUDENT, User.Role.GUARDIAN])
+def test_non_tutor_cannot_create_a_booking(client, student, role):
+    user = User.objects.create_user(
+        email=f"{role}@example.com",
+        role=role,
+        is_staff=True,
+        is_superuser=True,
+    )
+    client.force_login(user)
+
+    response = client.post(
+        reverse("api:booking-list"),
+        booking_payload(student),
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert Booking.objects.count() == 0
+
+
+def test_booking_creation_requires_csrf(student):
+    tutor = User.objects.create_user(
+        email="tutor@example.com",
+        role=User.Role.TUTOR,
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(tutor)
+
+    response = client.post(
+        reverse("api:booking-list"),
+        booking_payload(student),
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert Booking.objects.count() == 0
+
+
+def test_booking_must_end_after_it_starts(tutor_client, student):
+    response = tutor_client.post(
+        reverse("api:booking-list"),
+        booking_payload(student, ends_at=START.isoformat()),
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["ends_at"] == ["The booking must end after it starts."]
+    assert Booking.objects.count() == 0
+
+
+def test_booking_cannot_be_created_for_an_inactive_student(tutor_client, student):
+    student.is_active = False
+    student.save()
+
+    response = tutor_client.post(
+        reverse("api:booking-list"),
+        booking_payload(student),
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "student" in response.json()
+    assert Booking.objects.count() == 0
+
+
+def test_booking_cannot_overlap_an_active_booking(tutor_client, student, booking):
+    response = tutor_client.post(
+        reverse("api:booking-list"),
+        booking_payload(
+            student,
+            starts_at=(START + timedelta(minutes=30)).isoformat(),
+            ends_at=(START + timedelta(hours=1, minutes=30)).isoformat(),
+        ),
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["non_field_errors"] == [
+        "This time overlaps an existing booking."
+    ]
+    assert Booking.objects.count() == 1
+
+
+def test_booking_can_start_when_another_booking_ends(tutor_client, student, booking):
+    response = tutor_client.post(
+        reverse("api:booking-list"),
+        booking_payload(
+            student,
+            starts_at=booking.ends_at.isoformat(),
+            ends_at=(booking.ends_at + timedelta(hours=1)).isoformat(),
+        ),
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert Booking.objects.count() == 2
+
+
+def test_cancelled_booking_does_not_block_its_time(tutor_client, student, booking):
+    booking.status = Booking.Status.CANCELLED
+    booking.save()
+
+    response = tutor_client.post(
+        reverse("api:booking-list"),
+        booking_payload(student),
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert Booking.objects.count() == 2
 
 
 @pytest.mark.parametrize("method", ["put", "patch", "delete"])
