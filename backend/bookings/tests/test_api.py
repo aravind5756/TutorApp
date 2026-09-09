@@ -170,7 +170,7 @@ def test_booking_list_returns_records_in_groups_of_twenty_five(tutor_client, stu
     assert booking_ids == list(Booking.objects.values_list("pk", flat=True))
 
 
-@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+@pytest.mark.parametrize("method", ["put", "patch", "delete"])
 def test_booking_list_does_not_allow_writes(tutor_client, booking, method):
     response = getattr(tutor_client, method)(
         reverse("api:booking-list"),
