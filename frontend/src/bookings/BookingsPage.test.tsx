@@ -1,11 +1,13 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { getBookings, type BookingListResponse } from "../api/bookings";
+import { createBooking, getBookings, type BookingListResponse } from "../api/bookings";
+import { getStudents } from "../api/students";
 import { BookingsPage } from "./BookingsPage";
 
-vi.mock("../api/bookings", () => ({ getBookings: vi.fn() }));
+vi.mock("../api/bookings", () => ({ createBooking: vi.fn(), getBookings: vi.fn() }));
+vi.mock("../api/students", () => ({ getStudents: vi.fn() }));
 
 const firstPage: BookingListResponse = {
   count: 2,
@@ -45,6 +47,31 @@ const firstPage: BookingListResponse = {
 
 beforeEach(() => {
   vi.mocked(getBookings).mockResolvedValue(firstPage);
+  vi.mocked(getStudents).mockResolvedValue({
+    count: 1,
+    next: null,
+    previous: null,
+    results: [{
+      id: 4,
+      first_name: "Maya",
+      last_name: "Thompson",
+      year_group: "Year 11",
+      subjects: "Mathematics",
+      is_active: true,
+    }],
+  });
+  vi.mocked(createBooking).mockResolvedValue({
+    ...firstPage.results[0],
+    id: 5,
+    student: {
+      id: 15,
+      first_name: "Zoe",
+      last_name: "Clarke",
+      year_group: "Year 10",
+    },
+    starts_at: "2026-09-09T09:00",
+    ends_at: "2026-09-09T10:00",
+  });
 });
 
 afterEach(() => {
@@ -118,4 +145,23 @@ test("loads more bookings without replacing the existing list", async () => {
   expect(await screen.findByText("Zoe Clarke")).toBeInTheDocument();
   expect(screen.getByText("Maya Thompson")).toBeInTheDocument();
   expect(getBookings).toHaveBeenLastCalledWith(2);
+});
+
+test("opens the form and adds a created booking to the list", async () => {
+  render(<BookingsPage />);
+  await screen.findByText("Maya Thompson");
+
+  await userEvent.click(screen.getByRole("button", { name: "New booking" }));
+  await screen.findByRole("option", { name: "Maya Thompson · Year 11" });
+  fireEvent.change(screen.getByLabelText("Starts"), {
+    target: { value: "2026-09-09T09:00" },
+  });
+  fireEvent.change(screen.getByLabelText("Ends"), {
+    target: { value: "2026-09-09T10:00" },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "Create booking" }));
+
+  expect(await screen.findByText("Zoe Clarke")).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "New booking" })).not.toBeInTheDocument();
+  expect(screen.getByText("Showing 3 bookings")).toBeInTheDocument();
 });
