@@ -330,6 +330,180 @@ def test_cancelled_booking_does_not_block_its_time(tutor_client, student, bookin
     assert Booking.objects.count() == 2
 
 
+def test_tutor_can_view_an_individual_booking(tutor_client, booking):
+    response = tutor_client.get(
+        reverse("api:booking-detail", args=[booking.pk]),
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == booking.pk
+    assert data["student"] == {
+        "id": booking.student.pk,
+        "first_name": "Maya",
+        "last_name": "Thompson",
+        "year_group": "Year 11",
+    }
+    assert data["status"] == Booking.Status.CONFIRMED
+    assert "learning_needs" not in data["student"]
+
+
+@pytest.mark.parametrize("method", ["get", "patch"])
+def test_anonymous_user_cannot_access_an_individual_booking(client, booking, method):
+    response = getattr(client, method)(
+        reverse("api:booking-detail", args=[booking.pk]),
+        {"status": Booking.Status.CANCELLED},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    booking.refresh_from_db()
+    assert booking.status == Booking.Status.CONFIRMED
+
+
+@pytest.mark.parametrize("role", [User.Role.STUDENT, User.Role.GUARDIAN])
+def test_non_tutor_cannot_update_an_individual_booking(client, booking, role):
+    user = User.objects.create_user(
+        email=f"{role}@example.com",
+        role=role,
+        is_staff=True,
+        is_superuser=True,
+    )
+    client.force_login(user)
+
+    response = client.patch(
+        reverse("api:booking-detail", args=[booking.pk]),
+        {"status": Booking.Status.CANCELLED},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    booking.refresh_from_db()
+    assert booking.status == Booking.Status.CONFIRMED
+
+
+def test_booking_update_requires_csrf(booking):
+    tutor = User.objects.create_user(
+        email="tutor@example.com",
+        role=User.Role.TUTOR,
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(tutor)
+
+    response = client.patch(
+        reverse("api:booking-detail", args=[booking.pk]),
+        {"status": Booking.Status.CANCELLED},
+        format="json",
+    )
+
+    assert response.status_code == 403
+    booking.refresh_from_db()
+    assert booking.status == Booking.Status.CONFIRMED
+
+
+def test_tutor_can_reschedule_a_booking(tutor_client, booking):
+    new_start = START + timedelta(hours=2)
+    new_end = START + timedelta(hours=3)
+
+    response = tutor_client.patch(
+        reverse("api:booking-detail", args=[booking.pk]),
+        {
+            "starts_at": new_start.isoformat(),
+            "ends_at": new_end.isoformat(),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    booking.refresh_from_db()
+    assert booking.starts_at == new_start
+    assert booking.ends_at == new_end
+    assert parse_datetime(response.json()["starts_at"]) == new_start
+    assert parse_datetime(response.json()["ends_at"]) == new_end
+    assert response.json()["student"]["id"] == booking.student.pk
+
+
+def test_tutor_can_cancel_a_booking(tutor_client, booking):
+    response = tutor_client.patch(
+        reverse("api:booking-detail", args=[booking.pk]),
+        {"status": Booking.Status.CANCELLED},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    booking.refresh_from_db()
+    assert booking.status == Booking.Status.CANCELLED
+    assert response.json()["status"] == Booking.Status.CANCELLED
+
+
+def test_updated_booking_must_end_after_it_starts(tutor_client, booking):
+    response = tutor_client.patch(
+        reverse("api:booking-detail", args=[booking.pk]),
+        {"ends_at": START.isoformat()},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["ends_at"] == ["The booking must end after it starts."]
+    booking.refresh_from_db()
+    assert booking.ends_at == START + timedelta(hours=1)
+
+
+def test_rescheduled_booking_cannot_overlap_another_booking(
+    tutor_client,
+    student,
+    booking,
+):
+    other_booking = Booking.objects.create(
+        student=student,
+        starts_at=START + timedelta(hours=2),
+        ends_at=START + timedelta(hours=3),
+        format=Booking.Format.IN_PERSON,
+    )
+
+    response = tutor_client.patch(
+        reverse("api:booking-detail", args=[booking.pk]),
+        {
+            "starts_at": (other_booking.starts_at + timedelta(minutes=30)).isoformat(),
+            "ends_at": (other_booking.ends_at + timedelta(minutes=30)).isoformat(),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["non_field_errors"] == [
+        "This time overlaps an existing booking."
+    ]
+    booking.refresh_from_db()
+    assert booking.starts_at == START
+    assert booking.ends_at == START + timedelta(hours=1)
+
+
+def test_missing_booking_returns_not_found(tutor_client):
+    response = tutor_client.get(
+        reverse("api:booking-detail", args=[999999]),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("method", ["put", "delete"])
+def test_booking_detail_does_not_allow_replacement_or_deletion(
+    tutor_client,
+    booking,
+    method,
+):
+    response = getattr(tutor_client, method)(
+        reverse("api:booking-detail", args=[booking.pk]),
+        {"status": Booking.Status.CANCELLED},
+        format="json",
+    )
+
+    assert response.status_code == 405
+    booking.refresh_from_db()
+    assert booking.status == Booking.Status.CONFIRMED
+
+
 @pytest.mark.parametrize("method", ["put", "patch", "delete"])
 def test_booking_list_does_not_allow_writes(tutor_client, booking, method):
     response = getattr(tutor_client, method)(
