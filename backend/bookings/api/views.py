@@ -1,10 +1,10 @@
-from rest_framework.generics import ListCreateAPIView
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.pagination import PageNumberPagination
 
 from accounts.permissions import IsTutor
 from bookings.models import Booking
 
-from .serializers import BookingCreateSerializer, BookingSerializer
+from .serializers import BookingSerializer, BookingWriteSerializer
 
 
 class BookingListPagination(PageNumberPagination):
@@ -19,5 +19,17 @@ class BookingListView(ListCreateAPIView):
 
     def get_serializer_class(self):
         if self.request.method == "POST":
-            return BookingCreateSerializer
+            return BookingWriteSerializer
+        return BookingSerializer
+
+
+class BookingDetailView(RetrieveUpdateAPIView):
+    permission_classes = [IsTutor]
+    serializer_class = BookingSerializer
+    queryset = Booking.objects.select_related("student")
+    http_method_names = ["get", "patch", "head", "options"]
+
+    def get_serializer_class(self):
+        if self.request.method == "PATCH":
+            return BookingWriteSerializer
         return BookingSerializer
