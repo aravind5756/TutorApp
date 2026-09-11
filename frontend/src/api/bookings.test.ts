@@ -1,6 +1,11 @@
 import { afterEach, expect, test, vi } from "vitest";
 
-import { createBooking, getBookings } from "./bookings";
+import {
+  createBooking,
+  getBooking,
+  getBookings,
+  updateBooking,
+} from "./bookings";
 
 vi.mock("./auth", () => ({
   getCsrfToken: vi.fn().mockResolvedValue("csrf-token"),
@@ -103,4 +108,71 @@ test("creates a booking with CSRF protection", async () => {
   expect((request.headers as Headers).get("X-CSRFToken")).toBe("csrf-token");
   expect((request.headers as Headers).get("Content-Type")).toBe("application/json");
   expect(JSON.parse(request.body as string)).toEqual(newBooking);
+});
+
+test("loads an individual booking with the current session", async () => {
+  const booking = {
+    id: 3,
+    student: {
+      id: 7,
+      first_name: "Maya",
+      last_name: "Thompson",
+      year_group: "Year 11",
+    },
+    starts_at: "2026-09-10T16:00:00+01:00",
+    ends_at: "2026-09-10T17:00:00+01:00",
+    status: "confirmed",
+    format: "online",
+    location: "",
+  };
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => booking,
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(getBooking(3)).resolves.toEqual(booking);
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/v1/bookings/3/",
+    expect.objectContaining({ credentials: "include" }),
+  );
+});
+
+test("updates selected booking fields with CSRF protection", async () => {
+  const updates = {
+    starts_at: "2026-09-10T17:00:00+01:00",
+    ends_at: "2026-09-10T18:00:00+01:00",
+    status: "cancelled" as const,
+  };
+  const updatedBooking = {
+    id: 3,
+    student: {
+      id: 7,
+      first_name: "Maya",
+      last_name: "Thompson",
+      year_group: "Year 11",
+    },
+    starts_at: updates.starts_at,
+    ends_at: updates.ends_at,
+    status: updates.status,
+    format: "online",
+    location: "",
+  };
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => updatedBooking,
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(updateBooking(3, updates)).resolves.toEqual(updatedBooking);
+
+  const request = fetchMock.mock.calls[0][1] as RequestInit;
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/bookings/3/");
+  expect(request.method).toBe("PATCH");
+  expect(request.credentials).toBe("include");
+  expect((request.headers as Headers).get("X-CSRFToken")).toBe("csrf-token");
+  expect((request.headers as Headers).get("Content-Type")).toBe("application/json");
+  expect(JSON.parse(request.body as string)).toEqual(updates);
 });
