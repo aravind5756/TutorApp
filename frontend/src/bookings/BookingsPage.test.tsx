@@ -2,11 +2,20 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { createBooking, getBookings, type BookingListResponse } from "../api/bookings";
+import {
+  createBooking,
+  getBooking,
+  getBookings,
+  type BookingListResponse,
+} from "../api/bookings";
 import { getStudents } from "../api/students";
 import { BookingsPage } from "./BookingsPage";
 
-vi.mock("../api/bookings", () => ({ createBooking: vi.fn(), getBookings: vi.fn() }));
+vi.mock("../api/bookings", () => ({
+  createBooking: vi.fn(),
+  getBooking: vi.fn(),
+  getBookings: vi.fn(),
+}));
 vi.mock("../api/students", () => ({ getStudents: vi.fn() }));
 
 const firstPage: BookingListResponse = {
@@ -47,6 +56,7 @@ const firstPage: BookingListResponse = {
 
 beforeEach(() => {
   vi.mocked(getBookings).mockResolvedValue(firstPage);
+  vi.mocked(getBooking).mockResolvedValue(firstPage.results[0]);
   vi.mocked(getStudents).mockResolvedValue({
     count: 1,
     next: null,
@@ -164,4 +174,23 @@ test("opens the form and adds a created booking to the list", async () => {
   expect(await screen.findByText("Zoe Clarke")).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "New booking" })).not.toBeInTheDocument();
   expect(screen.getByText("Showing 3 bookings")).toBeInTheDocument();
+});
+
+test("opens a booking record and returns to the list", async () => {
+  render(<BookingsPage />);
+  await screen.findByText("Maya Thompson");
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "View booking for Maya Thompson" }),
+  );
+
+  expect(await screen.findByRole("heading", { name: "Maya Thompson" })).toBeInTheDocument();
+  expect(getBooking).toHaveBeenCalledWith(1);
+
+  await userEvent.click(screen.getByRole("button", { name: "Back to bookings" }));
+
+  expect(screen.getByRole("heading", { name: "Bookings" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "View booking for Maya Thompson" }),
+  ).toBeInTheDocument();
 });
