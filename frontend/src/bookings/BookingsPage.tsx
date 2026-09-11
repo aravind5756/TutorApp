@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   AlertCircle,
   CalendarDays,
+  ChevronRight,
   Clock3,
   LoaderCircle,
   MapPin,
@@ -13,6 +14,7 @@ import {
   type BookingStatus,
   type BookingSummary,
 } from "../api/bookings";
+import { BookingDetails } from "./BookingDetails";
 import { NewBookingForm } from "./NewBookingForm";
 
 const statusStyles: Record<BookingStatus, string> = {
@@ -33,7 +35,7 @@ const timeFormatter = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
 });
 
-function BookingCard({ booking }: { booking: BookingSummary }) {
+function BookingCard({ booking, onSelect }: { booking: BookingSummary; onSelect: () => void }) {
   const startsAt = new Date(booking.starts_at);
   const endsAt = new Date(booking.ends_at);
   const location = booking.format === "online"
@@ -41,7 +43,8 @@ function BookingCard({ booking }: { booking: BookingSummary }) {
     : booking.location || "Location not set";
 
   return (
-    <li className="rounded-2xl border border-[#e0e2da] bg-white p-5 shadow-[0_8px_30px_rgba(27,47,43,0.04)]">
+    <li className="rounded-2xl border border-[#e0e2da] bg-white shadow-[0_8px_30px_rgba(27,47,43,0.04)] transition hover:-translate-y-0.5 hover:border-[#b9cec6] hover:shadow-[0_12px_34px_rgba(27,47,43,0.08)]">
+      <button type="button" onClick={onSelect} className="w-full p-5 text-left" aria-label={`View booking for ${booking.student.first_name} ${booking.student.last_name}`}>
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
           <p className="text-sm font-semibold text-[#1f765f]">
@@ -54,9 +57,12 @@ function BookingCard({ booking }: { booking: BookingSummary }) {
             {booking.student.year_group || "Year group not set"}
           </p>
         </div>
-        <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusStyles[booking.status]}`}>
-          {booking.status}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusStyles[booking.status]}`}>
+            {booking.status}
+          </span>
+          <ChevronRight size={18} className="text-[#9aa6a2]" aria-hidden="true" />
+        </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-[#66736f]">
         <span className="inline-flex items-center gap-1.5">
@@ -68,6 +74,7 @@ function BookingCard({ booking }: { booking: BookingSummary }) {
           {location}
         </span>
       </div>
+      </button>
     </li>
   );
 }
@@ -78,6 +85,7 @@ export function BookingsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [showNewBookingForm, setShowNewBookingForm] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
 
   async function loadBookings(pageToLoad: number) {
     setStatus("loading");
@@ -97,6 +105,15 @@ export function BookingsPage() {
   useEffect(() => {
     void loadBookings(1);
   }, []);
+
+  if (selectedBookingId !== null) {
+    return (
+      <BookingDetails
+        bookingId={selectedBookingId}
+        onBack={() => setSelectedBookingId(null)}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1500px] px-5 py-7 md:px-8 lg:px-10 lg:py-9">
@@ -164,7 +181,13 @@ export function BookingsPage() {
             Showing {bookings.length} booking{bookings.length === 1 ? "" : "s"}
           </p>
           <ul className="grid gap-4 lg:grid-cols-2">
-            {bookings.map((booking) => <BookingCard key={booking.id} booking={booking} />)}
+            {bookings.map((booking) => (
+              <BookingCard
+                key={booking.id}
+                booking={booking}
+                onSelect={() => setSelectedBookingId(booking.id)}
+              />
+            ))}
           </ul>
           {hasMore && status !== "error" && (
             <div className="mt-6 flex justify-center">
