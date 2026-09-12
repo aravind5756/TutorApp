@@ -2,10 +2,13 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-import { getBooking, type BookingSummary } from "../api/bookings";
+import { getBooking, updateBooking, type BookingSummary } from "../api/bookings";
 import { BookingDetails } from "./BookingDetails";
 
-vi.mock("../api/bookings", () => ({ getBooking: vi.fn() }));
+vi.mock("../api/bookings", () => ({
+  getBooking: vi.fn(),
+  updateBooking: vi.fn(),
+}));
 
 const booking: BookingSummary = {
   id: 1,
@@ -24,6 +27,10 @@ const booking: BookingSummary = {
 
 beforeEach(() => {
   vi.mocked(getBooking).mockResolvedValue(booking);
+  vi.mocked(updateBooking).mockResolvedValue({
+    ...booking,
+    status: "completed",
+  });
 });
 
 afterEach(() => {
@@ -73,4 +80,50 @@ test("returns to the bookings list", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Back to bookings" }));
 
   expect(onBack).toHaveBeenCalledOnce();
+});
+
+test("does not save when the status has not changed", async () => {
+  render(<BookingDetails bookingId={1} onBack={vi.fn()} />);
+  await screen.findByRole("heading", { name: "Maya Thompson" });
+
+  expect(screen.getByLabelText("Status")).toHaveValue("confirmed");
+  expect(screen.getByRole("button", { name: "Save status" })).toBeDisabled();
+  expect(updateBooking).not.toHaveBeenCalled();
+});
+
+test("saves a new booking status", async () => {
+  render(<BookingDetails bookingId={1} onBack={vi.fn()} />);
+  await screen.findByRole("heading", { name: "Maya Thompson" });
+
+  await userEvent.selectOptions(screen.getByLabelText("Status"), "completed");
+  await userEvent.click(screen.getByRole("button", { name: "Save status" }));
+
+  expect(updateBooking).toHaveBeenCalledWith(1, { status: "completed" });
+  expect(await screen.findByRole("status")).toHaveTextContent("Booking status saved");
+  expect(screen.getByRole("button", { name: "Save status" })).toBeDisabled();
+});
+
+test("shows that a status update is being saved", async () => {
+  vi.mocked(updateBooking).mockReturnValue(new Promise(() => {}));
+  render(<BookingDetails bookingId={1} onBack={vi.fn()} />);
+  await screen.findByRole("heading", { name: "Maya Thompson" });
+
+  await userEvent.selectOptions(screen.getByLabelText("Status"), "requested");
+  await userEvent.click(screen.getByRole("button", { name: "Save status" }));
+
+  expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+});
+
+test("shows an error when a status update fails", async () => {
+  vi.mocked(updateBooking).mockRejectedValue(new Error("Unavailable"));
+  render(<BookingDetails bookingId={1} onBack={vi.fn()} />);
+  await screen.findByRole("heading", { name: "Maya Thompson" });
+
+  await userEvent.selectOptions(screen.getByLabelText("Status"), "cancelled");
+  await userEvent.click(screen.getByRole("button", { name: "Save status" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Booking status could not be saved",
+  );
+  expect(screen.getByRole("button", { name: "Save status" })).toBeEnabled();
 });
