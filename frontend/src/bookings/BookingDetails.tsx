@@ -12,6 +12,7 @@ import {
 
 import {
   getBooking,
+  updateBooking,
   type BookingStatus,
   type BookingSummary,
 } from "../api/bookings";
@@ -28,6 +29,13 @@ const statusStyles: Record<BookingStatus, string> = {
   cancelled: "bg-white/12 text-[#d9e3e0]",
 };
 
+const statusOptions: { value: BookingStatus; label: string }[] = [
+  { value: "requested", label: "Requested" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
 const dateFormatter = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "full",
 });
@@ -39,21 +47,25 @@ const timeFormatter = new Intl.DateTimeFormat("en-GB", {
 
 export function BookingDetails({ bookingId, onBack }: BookingDetailsProps) {
   const [booking, setBooking] = useState<BookingSummary | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [loadStatus, setLoadStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [selectedStatus, setSelectedStatus] = useState<BookingStatus>("requested");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [reloadCount, setReloadCount] = useState(0);
 
   useEffect(() => {
     let active = true;
-    setStatus("loading");
+    setLoadStatus("loading");
 
     getBooking(bookingId)
       .then((record) => {
         if (!active) return;
         setBooking(record);
-        setStatus("ready");
+        setSelectedStatus(record.status);
+        setSaveStatus("idle");
+        setLoadStatus("ready");
       })
       .catch(() => {
-        if (active) setStatus("error");
+        if (active) setLoadStatus("error");
       });
 
     return () => {
@@ -64,19 +76,36 @@ export function BookingDetails({ bookingId, onBack }: BookingDetailsProps) {
   const startsAt = booking ? new Date(booking.starts_at) : null;
   const endsAt = booking ? new Date(booking.ends_at) : null;
 
+  async function saveBookingStatus() {
+    if (!booking || selectedStatus === booking.status) return;
+
+    setSaveStatus("saving");
+
+    try {
+      const updatedBooking = await updateBooking(booking.id, {
+        status: selectedStatus,
+      });
+      setBooking(updatedBooking);
+      setSelectedStatus(updatedBooking.status);
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("error");
+    }
+  }
+
   return (
     <div className="mx-auto max-w-[1100px] px-5 py-7 md:px-8 lg:px-10 lg:py-9">
       <button type="button" onClick={onBack} className="mb-6 inline-flex items-center gap-2 rounded-lg text-sm font-semibold text-[#35685b] hover:text-[#174f40]">
         <ArrowLeft size={18} aria-hidden="true" /> Back to bookings
       </button>
 
-      {status === "loading" && (
+      {loadStatus === "loading" && (
         <div role="status" className="flex min-h-64 items-center justify-center gap-3 rounded-3xl border border-[#dfe2d9] bg-white font-semibold text-[#1f765f]">
           <LoaderCircle className="animate-spin" aria-hidden="true" /> Loading booking details…
         </div>
       )}
 
-      {status === "error" && (
+      {loadStatus === "error" && (
         <div role="alert" className="rounded-3xl border border-[#efd1c8] bg-[#fff7f4] p-6 text-[#8d402e]">
           <div className="flex items-center gap-3 font-bold">
             <AlertCircle aria-hidden="true" /> Booking details could not be loaded
@@ -88,7 +117,7 @@ export function BookingDetails({ bookingId, onBack }: BookingDetailsProps) {
         </div>
       )}
 
-      {status === "ready" && booking && startsAt && endsAt && (
+      {loadStatus === "ready" && booking && startsAt && endsAt && (
         <>
           <header className="mb-6 rounded-3xl bg-[#203e3a] p-6 text-white shadow-[0_14px_34px_rgba(28,60,54,0.16)] md:p-8">
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
@@ -143,6 +172,52 @@ export function BookingDetails({ bookingId, onBack }: BookingDetailsProps) {
                 <MapPin size={17} aria-hidden="true" />
                 {booking.location || (booking.format === "online" ? "No meeting link added" : "No location added")}
               </p>
+            </section>
+
+            <section className="rounded-3xl border border-[#dfe2d9] bg-white p-6 shadow-[0_10px_30px_rgba(27,47,43,0.04)] md:col-span-2">
+              <h2 className="text-lg font-bold">Booking status</h2>
+              <p className="mt-1 text-sm text-[#66736f]">
+                Keep the booking record up to date after plans change or the lesson takes place.
+              </p>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
+                <label className="flex-1 text-sm font-semibold text-[#344a44]">
+                  Status
+                  <select
+                    value={selectedStatus}
+                    onChange={(event) => {
+                      setSelectedStatus(event.target.value as BookingStatus);
+                      setSaveStatus("idle");
+                    }}
+                    className="mt-2 w-full rounded-xl border border-[#ccd5d0] bg-white px-3 py-2.5 text-base font-normal text-[#263a35] outline-none focus:border-[#1f765f] focus:ring-2 focus:ring-[#1f765f]/20"
+                  >
+                    {statusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={saveBookingStatus}
+                  disabled={saveStatus === "saving" || selectedStatus === booking.status}
+                  className="rounded-xl bg-[#1f765f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#195f4d] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saveStatus === "saving" ? "Saving…" : "Save status"}
+                </button>
+              </div>
+
+              {saveStatus === "saved" && (
+                <p role="status" className="mt-3 text-sm font-semibold text-[#1f765f]">
+                  Booking status saved.
+                </p>
+              )}
+              {saveStatus === "error" && (
+                <p role="alert" className="mt-3 text-sm font-semibold text-[#9b3f2f]">
+                  Booking status could not be saved. Please try again.
+                </p>
+              )}
             </section>
           </div>
         </>
