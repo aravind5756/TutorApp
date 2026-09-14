@@ -16,6 +16,7 @@ import {
   type BookingStatus,
   type BookingSummary,
 } from "../api/bookings";
+import { RescheduleBookingForm } from "./RescheduleBookingForm";
 
 type BookingDetailsProps = {
   bookingId: number;
@@ -173,6 +174,8 @@ export function BookingDetails({ bookingId, onBack }: BookingDetailsProps) {
                 {booking.location || (booking.format === "online" ? "No meeting link added" : "No location added")}
               </p>
             </section>
+
+            <RescheduleBookingForm booking={booking} onUpdated={setBooking} />
 
             <section className="rounded-3xl border border-[#dfe2d9] bg-white p-6 shadow-[0_10px_30px_rgba(27,47,43,0.04)] md:col-span-2">
               <h2 className="text-lg font-bold">Booking status</h2>
