@@ -1,3 +1,4 @@
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.pagination import PageNumberPagination
 
@@ -21,6 +22,20 @@ class BookingListView(ListCreateAPIView):
         if self.request.method == "POST":
             return BookingWriteSerializer
         return BookingSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        booking_status = self.request.query_params.get("status")
+
+        if booking_status is None:
+            return queryset
+
+        if booking_status not in Booking.Status.values:
+            raise ValidationError(
+                {"status": ["Select a valid booking status."]}
+            )
+
+        return queryset.filter(status=booking_status)
 
 
 class BookingDetailView(RetrieveUpdateAPIView):
