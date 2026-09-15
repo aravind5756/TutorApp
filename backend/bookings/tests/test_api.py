@@ -157,6 +157,52 @@ def test_bookings_are_ordered_by_start_time(tutor_client, student):
     ]
 
 
+@pytest.mark.parametrize("booking_status", Booking.Status.values)
+def test_bookings_can_be_filtered_by_status(tutor_client, student, booking_status):
+    matching_booking = Booking.objects.create(
+        student=student,
+        starts_at=START,
+        ends_at=START + timedelta(hours=1),
+        status=booking_status,
+        format=Booking.Format.ONLINE,
+    )
+    other_status = (
+        Booking.Status.REQUESTED
+        if booking_status == Booking.Status.CONFIRMED
+        else Booking.Status.CONFIRMED
+    )
+    Booking.objects.create(
+        student=student,
+        starts_at=START + timedelta(hours=2),
+        ends_at=START + timedelta(hours=3),
+        status=other_status,
+        format=Booking.Format.IN_PERSON,
+    )
+
+    response = tutor_client.get(
+        reverse("api:booking-list"),
+        {"status": booking_status},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+    assert [record["id"] for record in response.json()["results"]] == [
+        matching_booking.pk
+    ]
+
+
+def test_invalid_booking_status_filter_is_rejected(tutor_client):
+    response = tutor_client.get(
+        reverse("api:booking-list"),
+        {"status": "overdue"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "status": ["Select a valid booking status."]
+    }
+
+
 def test_booking_list_returns_records_in_groups_of_twenty_five(tutor_client, student):
     Booking.objects.bulk_create([
         Booking(
