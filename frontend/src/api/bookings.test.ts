@@ -69,6 +69,42 @@ test("requests a specific booking page", async () => {
   );
 });
 
+test("requests bookings with a status filter", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ count: 0, next: null, previous: null, results: [] }),
+    }),
+  );
+
+  await getBookings(1, { status: "confirmed" });
+
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/v1/bookings/?status=confirmed",
+    expect.any(Object),
+  );
+});
+
+test("keeps the status filter when requesting another page", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ count: 0, next: null, previous: null, results: [] }),
+    }),
+  );
+
+  await getBookings(3, { status: "cancelled" });
+
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/v1/bookings/?page=3&status=cancelled",
+    expect.any(Object),
+  );
+});
+
 test("creates a booking with CSRF protection", async () => {
   const newBooking = {
     student: 7,
