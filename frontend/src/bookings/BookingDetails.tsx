@@ -16,6 +16,7 @@ import {
   type BookingStatus,
   type BookingSummary,
 } from "../api/bookings";
+import { EditBookingDetailsForm } from "./EditBookingDetailsForm";
 import { RescheduleBookingForm } from "./RescheduleBookingForm";
 
 type BookingDetailsProps = {
@@ -176,6 +177,8 @@ export function BookingDetails({ bookingId, onBack }: BookingDetailsProps) {
             </section>
 
             <RescheduleBookingForm booking={booking} onUpdated={setBooking} />
+
+            <EditBookingDetailsForm booking={booking} onUpdated={setBooking} />
 
             <section className="rounded-3xl border border-[#dfe2d9] bg-white p-6 shadow-[0_10px_30px_rgba(27,47,43,0.04)] md:col-span-2">
               <h2 className="text-lg font-bold">Booking status</h2>
