@@ -33,6 +33,10 @@ export type BookingListResponse = {
   results: BookingSummary[];
 };
 
+export type BookingFilters = {
+  status?: BookingStatus;
+};
+
 export type NewBooking = {
   student: number;
   starts_at: string;
@@ -44,8 +48,17 @@ export type NewBooking = {
 
 export type BookingUpdates = Partial<NewBooking>;
 
-export function getBookings(page = 1): Promise<BookingListResponse> {
-  const query = page > 1 ? `?page=${page}` : "";
+export function getBookings(
+  page = 1,
+  filters: BookingFilters = {},
+): Promise<BookingListResponse> {
+  const parameters = new URLSearchParams();
+
+  if (page > 1) parameters.set("page", page.toString());
+  if (filters.status) parameters.set("status", filters.status);
+
+  const queryString = parameters.toString();
+  const query = queryString ? `?${queryString}` : "";
   return apiRequest<BookingListResponse>(`/bookings/${query}`);
 }
 
