@@ -194,3 +194,99 @@ test("opens a booking record and returns to the list", async () => {
     screen.getByRole("button", { name: "View booking for Maya Thompson" }),
   ).toBeInTheDocument();
 });
+
+test("selects the all bookings filter by default", async () => {
+  render(<BookingsPage />);
+  await screen.findByText("Maya Thompson");
+
+  expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.getByRole("button", { name: "Confirmed" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  expect(getBookings).toHaveBeenCalledWith(1);
+});
+
+test("loads bookings for the selected status", async () => {
+  vi.mocked(getBookings)
+    .mockResolvedValueOnce(firstPage)
+    .mockResolvedValueOnce({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [firstPage.results[0]],
+    });
+  render(<BookingsPage />);
+  await screen.findByText("Alex Reed");
+
+  await userEvent.click(screen.getByRole("button", { name: "Confirmed" }));
+
+  expect(await screen.findByText("Showing 1 booking")).toBeInTheDocument();
+  expect(screen.getByText("Maya Thompson")).toBeInTheDocument();
+  expect(screen.queryByText("Alex Reed")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Confirmed" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(getBookings).toHaveBeenLastCalledWith(1, { status: "confirmed" });
+});
+
+test("shows an empty state for a status with no bookings", async () => {
+  vi.mocked(getBookings)
+    .mockResolvedValueOnce(firstPage)
+    .mockResolvedValueOnce({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    });
+  render(<BookingsPage />);
+  await screen.findByText("Maya Thompson");
+
+  await userEvent.click(screen.getByRole("button", { name: "Cancelled" }));
+
+  expect(
+    await screen.findByRole("heading", { name: "No cancelled bookings" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Try another status or create a new booking.")).toBeInTheDocument();
+  expect(getBookings).toHaveBeenLastCalledWith(1, { status: "cancelled" });
+});
+
+test("keeps the selected status when loading more bookings", async () => {
+  vi.mocked(getBookings)
+    .mockResolvedValueOnce(firstPage)
+    .mockResolvedValueOnce({
+      count: 2,
+      next: "page-2",
+      previous: null,
+      results: [firstPage.results[0]],
+    })
+    .mockResolvedValueOnce({
+      count: 2,
+      next: null,
+      previous: "page-1",
+      results: [{
+        ...firstPage.results[0],
+        id: 3,
+        student: {
+          id: 12,
+          first_name: "Zoe",
+          last_name: "Clarke",
+          year_group: "Year 10",
+        },
+      }],
+    });
+  render(<BookingsPage />);
+  await screen.findByText("Maya Thompson");
+
+  await userEvent.click(screen.getByRole("button", { name: "Confirmed" }));
+  await screen.findByRole("button", { name: "Load more bookings" });
+  await userEvent.click(screen.getByRole("button", { name: "Load more bookings" }));
+
+  expect(await screen.findByText("Zoe Clarke")).toBeInTheDocument();
+  expect(screen.getByText("Maya Thompson")).toBeInTheDocument();
+  expect(getBookings).toHaveBeenLastCalledWith(2, { status: "confirmed" });
+});
