@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CalendarDays,
@@ -23,6 +23,16 @@ const statusStyles: Record<BookingStatus, string> = {
   completed: "bg-[#e6ebf5] text-[#435f95]",
   cancelled: "bg-[#eceee9] text-[#68736f]",
 };
+
+type BookingFilter = BookingStatus | "all";
+
+const bookingFilters: { value: BookingFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "requested", label: "Requested" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
 const dateFormatter = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
@@ -84,13 +94,23 @@ export function BookingsPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [selectedStatus, setSelectedStatus] = useState<BookingFilter>("all");
   const [showNewBookingForm, setShowNewBookingForm] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const latestRequest = useRef(0);
 
-  async function loadBookings(pageToLoad: number) {
+  async function loadBookings(
+    pageToLoad: number,
+    statusFilter: BookingFilter = selectedStatus,
+  ) {
+    const requestId = latestRequest.current + 1;
+    latestRequest.current = requestId;
     setStatus("loading");
     try {
-      const response = await getBookings(pageToLoad);
+      const response = statusFilter === "all"
+        ? await getBookings(pageToLoad)
+        : await getBookings(pageToLoad, { status: statusFilter });
+      if (requestId !== latestRequest.current) return;
       setBookings((current) =>
         pageToLoad === 1 ? response.results : [...current, ...response.results],
       );
@@ -98,12 +118,22 @@ export function BookingsPage() {
       setHasMore(response.next !== null);
       setStatus("ready");
     } catch {
+      if (requestId !== latestRequest.current) return;
       setStatus("error");
     }
   }
 
+  function selectStatusFilter(statusFilter: BookingFilter) {
+    if (statusFilter === selectedStatus) return;
+
+    setSelectedStatus(statusFilter);
+    setBookings([]);
+    setHasMore(false);
+    void loadBookings(1, statusFilter);
+  }
+
   useEffect(() => {
-    void loadBookings(1);
+    void loadBookings(1, "all");
   }, []);
 
   if (selectedBookingId !== null) {
@@ -138,14 +168,37 @@ export function BookingsPage() {
         <NewBookingForm
           onCancel={() => setShowNewBookingForm(false)}
           onCreated={(booking) => {
-            setBookings((current) => [...current, booking].sort((left, right) =>
-              new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime()
-            ));
+            if (selectedStatus === "all" || selectedStatus === booking.status) {
+              setBookings((current) => [...current, booking].sort((left, right) =>
+                new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime()
+              ));
+            }
             setShowNewBookingForm(false);
             setStatus("ready");
           }}
         />
       )}
+
+      <nav aria-label="Filter bookings by status" className="mb-6 flex gap-2 overflow-x-auto pb-1">
+        {bookingFilters.map((filter) => {
+          const isSelected = selectedStatus === filter.value;
+          return (
+            <button
+              key={filter.value}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => selectStatusFilter(filter.value)}
+              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                isSelected
+                  ? "bg-[#203e3a] text-white shadow-[0_6px_16px_rgba(32,62,58,0.16)]"
+                  : "border border-[#d5dbd4] bg-white text-[#52625e] hover:border-[#aebfb8] hover:text-[#234f44]"
+              }`}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
+      </nav>
 
       {status === "loading" && bookings.length === 0 && (
         <div role="status" className="flex min-h-64 items-center justify-center gap-3 rounded-3xl border border-[#dfe2d9] bg-white font-semibold text-[#1f765f]">
@@ -159,7 +212,7 @@ export function BookingsPage() {
             <AlertCircle aria-hidden="true" /> Bookings could not be loaded
           </div>
           <p className="mt-2 text-sm">Check that the backend is running, then try again.</p>
-          <button type="button" onClick={() => void loadBookings(bookings.length ? page + 1 : 1)} className="mt-4 rounded-xl bg-[#8d402e] px-4 py-2 text-sm font-semibold text-white">
+          <button type="button" onClick={() => void loadBookings(bookings.length ? page + 1 : 1, selectedStatus)} className="mt-4 rounded-xl bg-[#8d402e] px-4 py-2 text-sm font-semibold text-white">
             Try again
           </button>
         </div>
@@ -169,8 +222,14 @@ export function BookingsPage() {
         <div className="grid min-h-64 place-items-center rounded-3xl border border-dashed border-[#cfd5cc] bg-white p-6 text-center">
           <div>
             <CalendarDays className="mx-auto mb-4 text-[#6b817b]" size={32} aria-hidden="true" />
-            <h2 className="text-lg font-bold">No bookings yet</h2>
-            <p className="mt-2 text-sm text-[#77817e]">Your scheduled lessons will appear here.</p>
+            <h2 className="text-lg font-bold">
+              {selectedStatus === "all" ? "No bookings yet" : `No ${selectedStatus} bookings`}
+            </h2>
+            <p className="mt-2 text-sm text-[#77817e]">
+              {selectedStatus === "all"
+                ? "Your scheduled lessons will appear here."
+                : "Try another status or create a new booking."}
+            </p>
           </div>
         </div>
       )}
@@ -191,7 +250,7 @@ export function BookingsPage() {
           </ul>
           {hasMore && status !== "error" && (
             <div className="mt-6 flex justify-center">
-              <button type="button" disabled={status === "loading"} onClick={() => void loadBookings(page + 1)} className="rounded-xl border border-[#cfd8d1] bg-white px-4 py-2.5 text-sm font-semibold text-[#28594d] disabled:opacity-60">
+              <button type="button" disabled={status === "loading"} onClick={() => void loadBookings(page + 1, selectedStatus)} className="rounded-xl border border-[#cfd8d1] bg-white px-4 py-2.5 text-sm font-semibold text-[#28594d] disabled:opacity-60">
                 {status === "loading" ? "Loading…" : "Load more bookings"}
               </button>
             </div>
