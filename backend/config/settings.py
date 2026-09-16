@@ -38,6 +38,7 @@ CSRF_TRUSTED_ORIGINS = [
 INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
     "bookings.apps.BookingsConfig",
+    "lessons.apps.LessonsConfig",
     "students.apps.StudentsConfig",
     "api.apps.ApiConfig",
     "django.contrib.admin",
